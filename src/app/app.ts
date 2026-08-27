@@ -1,12 +1,6 @@
-import { Component, signal } from '@angular/core';
+import { Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
-
-@Component({
-  selector: 'app-root',
-  imports: [RouterOutlet],
-  templateUrl: './app.html',
-  styleUrl: './app.css'
-})
-export class App {
-  protected readonly title = signal('unityBank');
-}
+import { BarraNav } from './barra-nav/barra-nav';
+import { BarraFooter } from './barra-footer/barra-footer';
+@Component({selector:'app-root',imports:[RouterOutlet,BarraNav,BarraFooter],templateUrl:'./app.html',styleUrl:'./app.css'})
+export class App {}

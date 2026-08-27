@@ -1,0 +1,150 @@
+@if (!ocultar) {
+  <header class="topbar">
+    <a class="brand" routerLink="/home">
+      <span class="brand-mark"><i></i><i></i><i></i></span>
+      <span>unity<span>bank</span></span>
+    </a>
+
+    <button
+      class="menu-toggle"
+      type="button"
+      (click)="menuOpen.set(!menuOpen())"
+      aria-label="Abrir menú"
+    >
+      ☰
+    </button>
+
+    <nav [class.open]="menuOpen()">
+      <a
+        routerLink="/home"
+        [class.active]="activeSection() === 'inicio'"
+        (click)="setSection('inicio')"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m3 11 9-8 9 8"></path>
+          <path d="M5 10v10h14V10M9 20v-6h6v6"></path></svg
+        ><span>Inicio</span>
+      </a>
+      <a
+        routerLink="/home"
+        fragment="transferencias"
+        [class.active]="activeSection() === 'transferencias'"
+        (click)="setSection('transferencias')"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M7 7h13M17 3l4 4-4 4M17 17H4M7 13l-4 4 4 4"></path>
+        </svg>
+        <span>Transferencias</span>
+      </a>
+      <a
+        routerLink="/home"
+        fragment="movimientos"
+        [class.active]="activeSection() === 'movimientos'"
+        (click)="setSection('movimientos')"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M7 7h13M17 3l4 4-4 4M17 17H4M7 13l-4 4 4 4"></path></svg
+        ><span>Movimientos</span>
+      </a>
+      <a
+        routerLink="/home"
+        fragment="reportes"
+        [class.active]="activeSection() === 'reportes'"
+        (click)="setSection('reportes')"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 20V10M10 20V4M16 20v-7M22 20H2"></path></svg
+        ><span>Reportes</span>
+      </a>
+      @if (auth.user()?.rol === 'ADMIN') {
+        <a
+          routerLink="/home"
+          fragment="clientes"
+          [class.active]="activeSection() === 'clientes'"
+          (click)="setSection('clientes')"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"
+            ></path></svg
+          ><span>Clientes</span>
+        </a>
+      }
+    </nav>
+
+    <div class="top-actions">
+      <button
+        class="message-button"
+        type="button"
+        (click)="toggleMessages()"
+        [class.has-unread]="messages.unreadCount() > 0"
+        aria-label="Abrir mensajes"
+        [attr.aria-expanded]="messagesOpen()"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 5.5h16v11H8l-4 3v-14Z"></path>
+          <path d="m5 7 7 5 7-5"></path>
+        </svg>
+        @if (messages.unreadCount() > 0) {
+          <span class="message-count">
+            {{ messages.unreadCount() > 9 ? '9+' : messages.unreadCount() }}
+          </span>
+        }
+      </button>
+
+      <button class="profile-chip" type="button" (click)="toggleProfile()">
+        <span class="avatar">{{ initials() }}</span>
+        <span>
+          <b>{{ auth.user()?.nombre }}</b>
+          <small>{{ auth.user()?.rol === 'ADMIN' ? 'Administrador' : 'Cuenta personal' }}</small>
+        </span>
+        <i>⌄</i>
+      </button>
+
+      @if (messagesOpen()) {
+        <section class="messages-menu" aria-label="Mensajes">
+          <div class="messages-header">
+            <div>
+              <strong>Mensajes</strong>
+              <small>{{ messages.unreadCount() }} sin leer</small>
+            </div>
+            @if (messages.unreadCount() > 0) {
+              <button type="button" (click)="messages.markAllAsRead()">Marcar leídos</button>
+            }
+          </div>
+
+          <div class="messages-list">
+            @for (message of messages.messages(); track message.id) {
+              <button
+                type="button"
+                class="message-item"
+                [class.unread]="!message.read"
+                (click)="messages.markAsRead(message.id)"
+              >
+                <span class="message-status"></span>
+                <span>
+                  <strong>{{ message.title }}</strong>
+                  <span>{{ message.body }}</span>
+                  <small>{{ message.createdAt | date: 'dd MMM · HH:mm' }}</small>
+                </span>
+              </button>
+            } @empty {
+              <div class="messages-empty">
+                <span>✉</span>
+                <strong>Todo está al día</strong>
+                <p>Aquí aparecerán los cambios realizados por el administrador.</p>
+              </div>
+            }
+          </div>
+        </section>
+      }
+
+      @if (profileOpen()) {
+        <div class="profile-menu">
+          <p>{{ auth.user()?.email }}</p>
+          <button type="button" (click)="cerrarSesion()">Cerrar sesión</button>
+        </div>
+      }
+    </div>
+  </header>
+}

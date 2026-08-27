@@ -1,0 +1,833 @@
+<div class="app-shell">
+  <main class="dashboard">
+    <section class="welcome">
+      <div>
+        <p class="overline">RESUMEN FINANCIERO</p>
+        <h1>Hola, {{ user()?.nombre?.split(' ')?.[0] }} <span>✦</span></h1>
+        <p>Tu dinero está en movimiento. Aquí tienes lo más importante de hoy.</p>
+      </div>
+      <button class="primary-btn" (click)="openCreate()"><b>＋</b> Nuevo movimiento</button>
+    </section>
+    @if (user()?.rol === 'ADMIN') {
+      <section class="admin-strip">
+        <div>
+          <span class="admin-badge">ADMIN</span>
+          <div>
+            <strong>Vista administrativa</strong
+            ><small>Consulta toda la actividad o selecciona un cliente.</small>
+          </div>
+        </div>
+        <select
+          #clientSelector
+          aria-label="Seleccionar cliente"
+          title="Seleccionar cliente"
+          [value]="selectedUserId() ?? ''"
+          (change)="selectUser(clientSelector.value)"
+        >
+          <option value="">Todos los clientes</option>
+          @for (client of clients(); track client.id) {
+            <option [value]="client.id">{{ client.nombre }} · {{ client.email }}</option>
+          }
+        </select>
+      </section>
+    }
+    <section class="metrics">
+      <article class="balance-card">
+        <div class="card-head">
+          <span>{{
+            selectedUser() ? 'Saldo de ' + selectedUser()?.nombre : 'Balance disponible'
+          }}</span
+          ><span class="mini-icon">◇</span>
+        </div>
+        <strong>{{ balance() | currency: 'USD' }}</strong>
+        <p><span class="trend">↗ 8.4%</span> frente al mes anterior</p>
+        <div class="sparkline">
+          <i style="--h: 30%"></i><i style="--h: 48%"></i><i style="--h: 38%"></i
+          ><i style="--h: 64%"></i><i style="--h: 56%"></i><i style="--h: 82%"></i
+          ><i style="--h: 72%"></i><i style="--h: 100%"></i>
+        </div>
+      </article>
+      <article class="metric-card">
+        <div class="card-head">
+          <span>Ingresos del mes</span><span class="mini-icon mint">↓</span>
+        </div>
+        <strong>{{ income() | currency: 'USD' }}</strong>
+        <p><span class="trend">↗ 12.5%</span> este mes</p>
+        <div class="progress"><i [style.width.%]="(income() / maxChart()) * 100"></i></div>
+      </article>
+      <article class="metric-card">
+        <div class="card-head">
+          <span>Gastos del mes</span><span class="mini-icon coral">↑</span>
+        </div>
+        <strong>{{ expenses() | currency: 'USD' }}</strong>
+        <p>Meta: $1,500.00</p>
+        <div class="progress coral"><i [style.width.%]="(expenses() / 1500) * 100"></i></div>
+      </article>
+      <article class="metric-card savings">
+        <div class="card-head">
+          <span>Tasa de ahorro</span><span class="mini-icon lavender">◎</span>
+        </div>
+        <div class="rate">
+          <strong>{{ savingRate() }}%</strong>
+          <div class="ring" [style.--value]="savingRate()"><span></span></div>
+        </div>
+        <p>¡Vas por buen camino!</p>
+      </article>
+    </section>
+    @if (activeView() === 'clientes' && user()?.rol === 'ADMIN') {
+      <section class="panel clients-panel">
+        <div class="section-heading">
+          <div>
+            <p class="overline">ADMINISTRACIÓN</p>
+            <h2>Clientes registrados</h2>
+            <p>Consulta saldos y gestiona operaciones individuales.</p>
+          </div>
+          <div class="client-heading-actions">
+            <span class="client-count">{{ clients().length }} clientes</span
+            ><button class="primary-btn" (click)="openAccountModal()">＋ Crear cuenta</button>
+          </div>
+        </div>
+        <div class="client-table-head">
+          <span>Cliente</span><span>Correo</span><span>Saldo</span><span>Acciones</span>
+        </div>
+        <div class="client-list">
+          @for (client of clients(); track client.id) {
+            <div class="client-row">
+              <div>
+                <span class="client-avatar">{{ client.nombre.charAt(0).toUpperCase() }}</span
+                ><strong>{{ client.nombre }}</strong>
+              </div>
+              <span data-label="Correo">{{ client.email }}</span
+              ><b data-label="Saldo">{{ client.saldo | currency: 'USD' }}</b>
+              <div>
+                <button (click)="viewClient(client)">Ver movimientos</button
+                ><button class="client-add" (click)="openCreate('DEPOSITO', client)">
+                  ＋ Operación
+                </button>
+              </div>
+            </div>
+          } @empty {
+            <div class="empty">Todavía no hay clientes registrados.</div>
+          }
+        </div>
+      </section>
+    } @else if (activeView() === 'transferencias') {
+      <section class="panel transfers-panel">
+        <div class="section-heading transfers-heading">
+          <div>
+            <p class="overline">OPERACIONES INTERNAS</p>
+            <h2>Historial de transferencias</h2>
+            <p>Consulta comprobantes oficiales emitidos por UnityBank.</p>
+          </div>
+          @if (user()?.rol === 'CLIENTE') {
+            <button class="primary-btn" type="button" (click)="openTransfer()">
+              ⇄ Nueva transferencia
+            </button>
+          }
+        </div>
+        @if (transfersLoading()) {
+          <div class="transfer-history-loading">Cargando transferencias…</div>
+        } @else if (transfersError()) {
+          <div class="transfer-history-error">
+            <span>!</span>
+            <p>{{ transfersError() }}</p>
+            <button type="button" (click)="setView('transferencias')">Reintentar</button>
+          </div>
+        } @else {
+          <div class="transfer-history">
+            @for (transfer of transfers(); track transfer.referencia) {
+              <button
+                class="transfer-history-row"
+                type="button"
+                (click)="openTransferReceipt(transfer.referencia)"
+              >
+                <span class="transfer-history-icon">⇄</span>
+                <span
+                  ><strong>{{ transfer.destinatario }}</strong
+                  ><small
+                    >{{ transfer.titularOrigen }} → {{ transfer.numeroCuentaDestino }}</small
+                  ></span
+                >
+                <span class="transfer-reference">{{ transfer.referencia }}</span>
+                <span
+                  ><b>{{ transfer.monto | currency: 'USD' }}</b
+                  ><small>{{ transfer.fecha | date: 'dd MMM, yyyy · HH:mm' }}</small></span
+                >
+                <span class="transfer-status" [class.rejected]="transfer.estado === 'RECHAZADA'">{{
+                  transfer.estado
+                }}</span>
+              </button>
+            } @empty {
+              <div class="empty-state">
+                <span>⇄</span><strong>Aún no hay transferencias</strong>
+                <p>Las operaciones enviadas y recibidas aparecerán aquí.</p>
+                @if (user()?.rol === 'CLIENTE') {
+                  <button class="text-btn" type="button" (click)="openTransfer()">
+                    Realizar la primera
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        }
+      </section>
+    } @else if (activeView() === 'reportes') {
+      <section class="report-grid">
+        <article class="panel report-main">
+          <div class="section-heading">
+            <div>
+              <p class="overline">BALANCE DEL PERÍODO</p>
+              <h2>Ingresos vs. gastos</h2>
+            </div>
+          </div>
+          <div class="big-bars">
+            <div>
+              <span>Ingresos</span><i><b [style.width.%]="(income() / maxChart()) * 100"></b></i
+              ><strong>{{ income() | currency: 'USD' }}</strong>
+            </div>
+            <div>
+              <span>Gastos</span
+              ><i><b class="expense" [style.width.%]="(expenses() / maxChart()) * 100"></b></i
+              ><strong>{{ expenses() | currency: 'USD' }}</strong>
+            </div>
+          </div>
+        </article>
+        <article class="panel report-note">
+          <span class="mini-icon mint">✦</span>
+          <h3>Balance positivo</h3>
+          <strong>{{ income() - expenses() | currency: 'USD' }}</strong>
+          <p>Has conservado el {{ savingRate() }}% de tus ingresos registrados.</p>
+        </article>
+      </section>
+    } @else {
+      <section class="content-grid" [class.full-list]="activeView() === 'movimientos'">
+        <article class="panel transactions">
+          <div class="section-heading">
+            <div>
+              <p class="overline">ACTIVIDAD RECIENTE</p>
+              <h2>
+                {{
+                  activeView() === 'movimientos' ? 'Todos tus movimientos' : 'Últimos movimientos'
+                }}
+              </h2>
+            </div>
+            <button class="text-btn" (click)="setView('movimientos')">Ver todos →</button>
+          </div>
+          <div class="filters">
+            <div class="search">
+              <span>⌕</span
+              ><input
+                #query
+                type="search"
+                placeholder="Buscar movimiento"
+                (input)="search.set(query.value)"
+              />
+            </div>
+            <div class="filter-pills">
+              <button [class.active]="typeFilter() === 'TODOS'" (click)="typeFilter.set('TODOS')">
+                Todos</button
+              ><button
+                [class.active]="typeFilter() === 'DEPOSITO'"
+                (click)="typeFilter.set('DEPOSITO')"
+              >
+                Ingresos</button
+              ><button
+                [class.active]="typeFilter() === 'RETIRO'"
+                (click)="typeFilter.set('RETIRO')"
+              >
+                Gastos
+              </button>
+            </div>
+          </div>
+          <div class="movement-list">
+            @if (loading()) {
+              <div class="skeleton-list" aria-label="Cargando movimientos" aria-live="polite">
+                @for (slot of skeletonRows; track slot) {
+                  <div class="skeleton-row">
+                    <span class="skeleton skeleton-icon"></span>
+                    <span class="skeleton-copy"
+                      ><i class="skeleton"></i><i class="skeleton"></i
+                    ></span>
+                    <span class="skeleton skeleton-pill"></span>
+                    <span class="skeleton skeleton-amount"></span>
+                  </div>
+                }
+              </div>
+            }
+            @if (!loading()) {
+              @for (
+                item of activeView() === 'inicio' ? filtered().slice(0, 5) : filtered();
+                track item.id
+              ) {
+                <div class="movement-row">
+                  <span
+                    class="movement-icon"
+                    [class.out]="item.tipo === 'RETIRO' && !isTransfer(item)"
+                    [class.transfer]="isTransfer(item)"
+                    >{{ isTransfer(item) ? '⇄' : item.tipo === 'DEPOSITO' ? '↓' : '↑' }}</span
+                  >
+                  <div class="movement-info">
+                    <strong>{{ displayDescription(item) }}</strong
+                    ><span
+                      >{{ user()?.rol === 'ADMIN' ? item.usuarioNombre + ' · ' : ''
+                      }}{{ item.fecha | date: 'dd MMM, yyyy · HH:mm' }}</span
+                    >
+                  </div>
+                  <span
+                    class="type-tag"
+                    [class.out]="item.tipo === 'RETIRO' && !isTransfer(item)"
+                    [class.transfer]="isTransfer(item)"
+                    >{{
+                      isTransfer(item)
+                        ? 'Transferencia'
+                        : item.tipo === 'DEPOSITO'
+                          ? 'Ingreso'
+                          : 'Gasto'
+                    }}</span
+                  ><strong class="amount" [class.out]="item.tipo === 'RETIRO'"
+                    >{{ item.tipo === 'DEPOSITO' ? '+' : '−'
+                    }}{{ item.monto | currency: 'USD' }}</strong
+                  >
+                  <div class="row-actions" [class.transfer-locked]="isTransfer(item)">
+                    @if (!isTransfer(item)) {
+                      <button
+                        type="button"
+                        (click)="edit(item)"
+                        aria-label="Editar movimiento"
+                        title="Editar movimiento"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M12 20h9"></path>
+                          <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"></path>
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        (click)="requestRemove(item)"
+                        aria-label="Eliminar movimiento"
+                        title="Eliminar movimiento"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M3 6h18M8 6V4h8v2M19 6l-1 15H6L5 6M10 11v6M14 11v6"></path>
+                        </svg>
+                      </button>
+                    } @else {
+                      <span
+                        class="locked-reference"
+                        [title]="item.referenciaTransferencia || 'Movimiento protegido'"
+                        >🔒 {{ item.referenciaTransferencia }}</span
+                      >
+                    }
+                  </div>
+                </div>
+              } @empty {
+                <div class="empty-state">
+                  <span>⌕</span><strong>No encontramos movimientos</strong>
+                  <p>Prueba con otro filtro o registra una nueva operación.</p>
+                  <button type="button" class="text-btn" (click)="openCreate()">
+                    ＋ Crear movimiento
+                  </button>
+                </div>
+              }
+            }
+          </div>
+        </article>
+        @if (activeView() === 'inicio') {
+          <aside class="side-column">
+            <article class="panel quick">
+              <div class="section-heading">
+                <div>
+                  <p class="overline">ACCESOS RÁPIDOS</p>
+                  <h2>¿Qué quieres hacer?</h2>
+                </div>
+              </div>
+              <button (click)="openCreate('DEPOSITO')">
+                <span class="mini-icon mint">↓</span
+                ><span><b>Registrar ingreso</b><small>Agrega dinero a tu cuenta</small></span
+                ><i>→</i></button
+              ><button (click)="openCreate('RETIRO')">
+                <span class="mini-icon coral">↑</span
+                ><span><b>Registrar gasto</b><small>Registra una salida de dinero</small></span
+                ><i>→</i>
+              </button>
+              @if (user()?.rol === 'CLIENTE') {
+                <button (click)="openTransfer()">
+                  <span class="mini-icon transfer-icon">⇄</span
+                  ><span><b>Hacer transferencia</b><small>Envía dinero a otra cuenta</small></span
+                  ><i>→</i>
+                </button>
+              }
+              <button (click)="setView('reportes')">
+                <span class="mini-icon lavender">◫</span
+                ><span><b>Ver reporte</b><small>Analiza tus finanzas</small></span
+                ><i>→</i>
+              </button>
+            </article>
+            <article class="insight">
+              <span>✦</span>
+              <div>
+                <p>CONSEJO UNITY</p>
+                <strong>Ahorrar también es avanzar</strong
+                ><small
+                  >Separar un 20% de tus ingresos puede acercarte más rápido a tus metas.</small
+                >
+              </div>
+            </article>
+          </aside>
+        }
+      </section>
+    }
+  </main>
+</div>
+@if (modalOpen()) {
+  <div class="modal-backdrop" (click)="modalOpen.set(false)">
+    <section class="modal" (click)="$event.stopPropagation()" role="dialog" aria-modal="true">
+      <button class="modal-close" (click)="modalOpen.set(false)">×</button>
+      <p class="overline">{{ editingId() ? 'EDITAR REGISTRO' : 'NUEVO REGISTRO' }}</p>
+      <h2>{{ editingId() ? 'Actualiza tu movimiento' : 'Registra un movimiento' }}</h2>
+      <p>La información se sincronizará con tu cuenta.</p>
+      <form [formGroup]="form" (ngSubmit)="save()">
+        @if (user()?.rol === 'ADMIN') {
+          <label for="movement-user">Cliente</label
+          ><select id="movement-user" class="admin-user-select" formControlName="usuarioId">
+            <option [ngValue]="null">Selecciona un cliente</option>
+            @for (client of clients(); track client.id) {
+              <option [ngValue]="client.id">{{ client.nombre }} · {{ client.email }}</option>
+            }
+          </select>
+        }
+        <label>Tipo de movimiento</label>
+        <div class="type-selector">
+          <button
+            type="button"
+            [class.active]="form.controls.tipo.value === 'DEPOSITO'"
+            (click)="form.controls.tipo.setValue('DEPOSITO')"
+          >
+            ↓ Ingreso</button
+          ><button
+            type="button"
+            [class.active]="form.controls.tipo.value === 'RETIRO'"
+            (click)="form.controls.tipo.setValue('RETIRO')"
+          >
+            ↑ Gasto
+          </button>
+        </div>
+        <label for="amount">Monto</label>
+        <div class="input-wrap">
+          <span>$</span
+          ><input
+            id="amount"
+            type="number"
+            min=".01"
+            step=".01"
+            formControlName="monto"
+            placeholder="0.00"
+          />
+        </div>
+        <label for="description">Descripción</label>
+        <div class="input-wrap">
+          <span>✦</span
+          ><input
+            id="description"
+            formControlName="descripcion"
+            placeholder="Ej. Pago de servicios"
+          />
+        </div>
+        <button class="primary-btn full" type="submit">
+          {{ editingId() ? 'Guardar cambios' : 'Registrar movimiento' }} <b>→</b>
+        </button>
+      </form>
+    </section>
+  </div>
+}
+@if (expenseReceipt(); as expense) {
+  <div class="modal-backdrop" (click)="closeExpenseReceipt()">
+    <section
+      class="modal transfer-modal expense-receipt-modal"
+      (click)="$event.stopPropagation()"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="expense-receipt-title"
+    >
+      <button
+        class="modal-close"
+        type="button"
+        (click)="closeExpenseReceipt()"
+        aria-label="Cerrar comprobante"
+      >
+        ×
+      </button>
+      <article class="bank-receipt expense-bank-receipt">
+        <header class="receipt-bank-header">
+          <div class="receipt-brand">
+            <span class="receipt-brand-mark"><i></i><i></i><i></i></span>
+            <span>unity<b>bank</b></span>
+          </div>
+          <div class="receipt-number">
+            <small>COMPROBANTE DE GASTO</small><b>MOV-{{ expense.id }}</b>
+          </div>
+        </header>
+
+        <section class="receipt-hero">
+          <span class="receipt-state-icon">↑</span>
+          <strong>−{{ expense.monto | currency: 'USD' }}</strong>
+          <b>{{ expense.usuarioNombre }}</b>
+          <time>{{ expense.fecha | date: 'dd/MM/yyyy · HH:mm:ss' }}</time>
+          <span class="receipt-state-label">GASTO REGISTRADO</span>
+        </section>
+
+        <section class="receipt-route">
+          <div class="receipt-route-line"><i></i><i></i></div>
+          <div class="receipt-party">
+            <small>GESTIONADO POR</small>
+            <strong>{{ user()?.nombre }}</strong>
+            <span>Administración UnityBank</span>
+          </div>
+          <div class="receipt-party">
+            <small>CUENTA AFECTADA</small>
+            <strong>{{ expense.usuarioNombre }}</strong>
+            <span>{{ movementAccount(expense) }} · UnityBank</span>
+          </div>
+        </section>
+
+        <section class="receipt-summary">
+          <div>
+            <span>Descripción</span><b>{{ expense.descripcion || 'Sin descripción' }}</b>
+          </div>
+          <div><span>Tipo de movimiento</span><b>Retiro administrativo</b></div>
+          <div>
+            <span>Valor debitado</span><strong>{{ expense.monto | currency: 'USD' }}</strong>
+          </div>
+        </section>
+
+        <footer class="receipt-footer">
+          <span>Movimiento confirmado por UnityBank Backend</span><b>REGISTRADO</b>
+        </footer>
+      </article>
+      <button class="primary-btn full receipt-close" type="button" (click)="closeExpenseReceipt()">
+        Cerrar comprobante
+      </button>
+    </section>
+  </div>
+}
+@if (transferModalOpen()) {
+  <div class="modal-backdrop" (click)="closeTransfer()">
+    <section
+      class="modal transfer-modal"
+      (click)="$event.stopPropagation()"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="transfer-title"
+    >
+      <button
+        class="modal-close"
+        type="button"
+        (click)="closeTransfer()"
+        aria-label="Cerrar transferencia"
+      >
+        ×
+      </button>
+      @if (transferStep() !== 'receipt') {
+        <span class="transfer-mark" aria-hidden="true">⇄</span>
+      }
+      @if (transferStep() === 'form') {
+        <p class="overline">TRANSFERENCIA INTERNA</p>
+        <h2 id="transfer-title">¿A qué cuenta enviarás?</h2>
+        <p>Solo puedes transferir a cuentas UnityBank de 12 dígitos.</p>
+        <form [formGroup]="transferForm" (ngSubmit)="reviewTransfer()">
+          <div class="transfer-field">
+            <label for="transfer-account">Número de cuenta destino</label>
+            <div class="input-wrap">
+              <span>#</span
+              ><input
+                id="transfer-account"
+                formControlName="numeroCuentaDestino"
+                maxlength="12"
+                inputmode="numeric"
+                autocomplete="off"
+                placeholder="123456789012"
+              />
+            </div>
+            @if (
+              transferForm.controls.numeroCuentaDestino.touched &&
+              transferForm.controls.numeroCuentaDestino.invalid
+            ) {
+              <small class="field-error">Ingresa exactamente 12 dígitos.</small>
+            }
+          </div>
+          <div class="transfer-field">
+            <label for="transfer-amount">Monto a transferir</label>
+            <div class="input-wrap transfer-amount">
+              <span>$</span
+              ><input
+                id="transfer-amount"
+                type="number"
+                min="0.01"
+                step="0.01"
+                formControlName="monto"
+                placeholder="0.00"
+              /><small>USD</small>
+            </div>
+            @if (transferForm.controls.monto.touched && transferForm.controls.monto.invalid) {
+              <small class="field-error">Usa un monto mayor a cero con máximo dos decimales.</small>
+            }
+            <small class="available-balance"
+              >Disponible: {{ user()?.saldo | currency: 'USD' }}</small
+            >
+          </div>
+          <div class="transfer-field">
+            <label for="transfer-concept">Concepto <small>(opcional)</small></label>
+            <div class="input-wrap">
+              <span>✦</span
+              ><input
+                id="transfer-concept"
+                formControlName="concepto"
+                maxlength="120"
+                placeholder="Ej. Pago mensual"
+              />
+            </div>
+            <small class="character-count"
+              >{{ transferForm.controls.concepto.value.length }}/120</small
+            >
+          </div>
+          <div class="transfer-note">
+            <span>i</span>
+            <p>
+              <b>Solo UnityBank.</b> Las transferencias a bancos externos no están disponibles en
+              este entorno académico.
+            </p>
+          </div>
+          <button class="primary-btn full transfer-submit" type="submit">
+            Revisar transferencia <b>→</b>
+          </button>
+        </form>
+      } @else if (transferStep() === 'confirm') {
+        <p class="overline">REVISA LOS DATOS</p>
+        <h2 id="transfer-title">Confirmar transferencia</h2>
+        <p>No se descontará dinero hasta que el servidor confirme la operación.</p>
+        <div class="transfer-confirm-summary">
+          <span>Cuenta destino</span><b>{{ transferForm.controls.numeroCuentaDestino.value }}</b
+          ><span>Banco</span><b>UnityBank</b><span>Concepto</span
+          ><b>{{ transferForm.controls.concepto.value || 'Sin concepto' }}</b
+          ><span>Total</span
+          ><strong>{{ transferForm.controls.monto.value | currency: 'USD' }}</strong>
+        </div>
+        <div class="transfer-confirm-actions">
+          <button
+            class="secondary-btn"
+            type="button"
+            (click)="transferStep.set('form')"
+            [disabled]="transferLoading()"
+          >
+            Editar</button
+          ><button
+            class="primary-btn"
+            type="button"
+            (click)="saveTransfer()"
+            [disabled]="transferLoading()"
+          >
+            {{ transferLoading() ? 'Procesando…' : 'Confirmar y enviar' }}
+          </button>
+        </div>
+        @if (transferLoading()) {
+          <div class="processing-note">
+            <i></i
+            ><span
+              ><b>Procesando de forma segura</b
+              ><small>No cierres esta ventana ni repitas la operación.</small></span
+            >
+          </div>
+        }
+      } @else if (transferReceipt(); as receipt) {
+        <article class="bank-receipt" [class.receipt-rejected]="receipt.estado === 'RECHAZADA'">
+          <header class="receipt-bank-header">
+            <div class="receipt-brand">
+              <span class="receipt-brand-mark"><i></i><i></i><i></i></span>
+              <span>unity<b>bank</b></span>
+            </div>
+            <div class="receipt-number">
+              <small>COMPROBANTE</small><b>{{ receipt.referencia }}</b>
+            </div>
+          </header>
+
+          <section class="receipt-hero">
+            <span class="receipt-state-icon">{{
+              receipt.estado === 'COMPLETADA' ? '✓' : '!'
+            }}</span>
+            <strong>{{ receipt.monto | currency: 'USD' }}</strong>
+            <b>{{ receipt.destinatario }}</b>
+            <time>{{ receipt.fecha | date: 'dd/MM/yyyy · HH:mm:ss' }}</time>
+            <span class="receipt-state-label">{{ receipt.estado }}</span>
+          </section>
+
+          <section class="receipt-route">
+            <div class="receipt-route-line"><i></i><i></i></div>
+            <div class="receipt-party">
+              <small>DESDE</small>
+              <strong>{{ receipt.titularOrigen }}</strong>
+              <span>Cuenta de origen · UnityBank</span>
+            </div>
+            <div class="receipt-party">
+              <small>PARA</small>
+              <strong>{{ receipt.destinatario }}</strong>
+              <span>{{ receipt.numeroCuentaDestino }} · UnityBank</span>
+            </div>
+          </section>
+
+          <section class="receipt-summary">
+            <div>
+              <span>Concepto</span><b>{{ receipt.concepto || 'Sin concepto' }}</b>
+            </div>
+            <div>
+              <span>Valor transferido</span><strong>{{ receipt.monto | currency: 'USD' }}</strong>
+            </div>
+            <div>
+              <span>Saldo disponible</span
+              ><strong>{{ receipt.saldoDisponible | currency: 'USD' }}</strong>
+            </div>
+          </section>
+
+          <footer class="receipt-footer">
+            <span>Operación procesada de forma segura por UnityBank</span>
+            <b>{{ receipt.estado }}</b>
+          </footer>
+        </article>
+        <button class="primary-btn full receipt-close" type="button" (click)="closeTransfer()">
+          Cerrar comprobante
+        </button>
+      }
+    </section>
+  </div>
+}
+@if (accountModalOpen()) {
+  <div class="modal-backdrop" (click)="accountModalOpen.set(false)">
+    <section
+      class="modal account-modal"
+      (click)="$event.stopPropagation()"
+      role="dialog"
+      aria-modal="true"
+    >
+      <button class="modal-close" (click)="accountModalOpen.set(false)">×</button>
+      <p class="overline">GESTIÓN DE ACCESOS</p>
+      <h2>Crear una cuenta</h2>
+      <p>Selecciona si la nueva cuenta será de usuario o administrador.</p>
+      <form [formGroup]="accountForm" (ngSubmit)="saveAccount()">
+        <label>Tipo de cuenta</label>
+        <div class="type-selector account-role">
+          <button
+            type="button"
+            [class.active]="accountForm.controls.rol.value === 'CLIENTE'"
+            (click)="accountForm.controls.rol.setValue('CLIENTE')"
+          >
+            ○ Usuario</button
+          ><button
+            type="button"
+            [class.active]="accountForm.controls.rol.value === 'ADMIN'"
+            (click)="accountForm.controls.rol.setValue('ADMIN')"
+          >
+            ◇ Administrador
+          </button>
+        </div>
+        <label for="account-name">Nombre completo</label>
+        <div class="input-wrap">
+          <span>○</span
+          ><input id="account-name" formControlName="nombre" placeholder="Nombre y apellido" />
+        </div>
+        <label for="account-email">Correo electrónico</label>
+        <div class="input-wrap">
+          <span>@</span
+          ><input
+            id="account-email"
+            type="email"
+            formControlName="email"
+            placeholder="nombre@correo.com"
+          />
+        </div>
+        <label for="account-password">Contraseña temporal</label>
+        <div class="input-wrap">
+          <span>⌁</span
+          ><input
+            id="account-password"
+            type="password"
+            formControlName="contrasena"
+            placeholder="Mínimo 8 caracteres"
+          />
+        </div>
+        <button class="primary-btn full" type="submit" [disabled]="accountLoading()">
+          {{
+            accountLoading()
+              ? 'Creando cuenta…'
+              : 'Crear ' +
+                (accountForm.controls.rol.value === 'ADMIN' ? 'administrador' : 'usuario')
+          }}
+          <b>→</b>
+        </button>
+      </form>
+    </section>
+  </div>
+}
+@if (deleteTarget(); as movement) {
+  <div class="modal-backdrop" (click)="cancelRemove()">
+    <section
+      class="modal delete-modal"
+      (click)="$event.stopPropagation()"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="delete-title"
+      aria-describedby="delete-description"
+    >
+      <button
+        class="modal-close"
+        type="button"
+        (click)="cancelRemove()"
+        aria-label="Cerrar confirmación"
+      >
+        ×
+      </button>
+      <span class="delete-warning" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <path d="M12 9v4M12 17h.01"></path>
+          <path
+            d="M10.3 3.7 2.4 17.4A2 2 0 0 0 4.1 20h15.8a2 2 0 0 0 1.7-2.6L13.7 3.7a2 2 0 0 0-3.4 0Z"
+          ></path>
+        </svg>
+      </span>
+      <p class="overline">CONFIRMAR ACCIÓN</p>
+      <h2 id="delete-title">¿Eliminar este movimiento?</h2>
+      <p id="delete-description">
+        Esta acción actualizará inmediatamente el saldo y no se puede deshacer.
+      </p>
+      <div class="delete-summary">
+        <span class="movement-icon" [class.out]="movement.tipo === 'RETIRO'">{{
+          movement.tipo === 'DEPOSITO' ? '↓' : '↑'
+        }}</span>
+        <div>
+          <strong>{{ movement.descripcion || 'Sin descripción' }}</strong
+          ><small
+            >{{ movement.tipo === 'DEPOSITO' ? 'Ingreso' : 'Gasto' }} ·
+            {{ movement.fecha | date: 'dd MMM, yyyy' }}</small
+          >
+        </div>
+        <b [class.expense]="movement.tipo === 'RETIRO'"
+          >{{ movement.tipo === 'DEPOSITO' ? '+' : '−' }}{{ movement.monto | currency: 'USD' }}</b
+        >
+      </div>
+      <div class="delete-actions">
+        <button
+          type="button"
+          class="secondary-btn"
+          (click)="cancelRemove()"
+          [disabled]="deleting()"
+        >
+          Cancelar
+        </button>
+        <button type="button" class="danger-btn" (click)="confirmRemove()" [disabled]="deleting()">
+          {{ deleting() ? 'Eliminando…' : 'Sí, eliminar' }}
+        </button>
+      </div>
+    </section>
+  </div>
+}
+@if (toast()) {
+  <div class="toast"><span>✓</span>{{ toast() }}</div>
+}
